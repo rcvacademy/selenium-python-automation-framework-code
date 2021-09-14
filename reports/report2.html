@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++)
+        filterItems[i].hidden = false;
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>RCV Academy Automation Report</h1>
+    <p>Report generated on 08-Aug-2021 at 23:08:03 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>JAVA_HOME</td>
+        <td>C:\Program Files\Java\jdk-14.0.1</td></tr>
+      <tr>
+        <td>PLATFORM</td>
+        <td>MCD</td></tr>
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "0.13.1", "py": "1.10.0", "pytest": "6.2.4"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-10-10.0.18362-SP0</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"Faker": "7.0.1", "allure-pytest": "2.9.43", "ast-transformer": "1.0.3", "html": "3.1.1", "metadata": "1.11.0"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.9.1</td></tr></table>
+    <h2>Summary</h2>
+    <p>1 tests ran in 17.40 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">0 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">1 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">testcases/test_searchflights.py::TestSearchAndVerifyFilter::test_search_flights_1_stop_1___New_Delhisdfsd____JFKdsfds____19_09_2021____2_Stop__</td>
+          <td class="col-duration">15.14</td>
+          <td class="col-links"><a class="url" href="http://www.rcvacademy.com/" target="_blank">URL</a> </td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div><div><img src="1628428082513.png" alt="screenshot" style="width:300px;height=200px" onclick="window.open(this.src)" align="right"/></div></div>
+            <div class="log">self = &lt;testcases.test_searchflights.TestSearchAndVerifyFilter testMethod=test_search_flights_1_stop_1___New_Delhisdfsd____JFKdsfds____19_09_2021____2_Stop__&gt;<br/>goingfrom = &#x27;New Delhisdfsd&#x27;, goingto = &#x27;JFKdsfds&#x27;, date = &#x27;19/09/2021&#x27;, stops = &#x27;2 Stop&#x27;<br/><br/>    @data(*Utils.read_data_from_csv(&quot;C:\\python-selenium\\TestFrameworkDemo\\testdata\\tdatacsv.csv&quot;))<br/>    @unpack<br/>    def test_search_flights_1_stop(self, goingfrom, goingto, date, stops):<br/>&gt;       search_flight_result = self.lp.searchFlights(goingfrom, goingto, date)<br/><br/>testcases\test_searchflights.py:23: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>pages\yatra_launch_page.py:74: in searchFlights<br/>    self.enterDepartureDate(departuredate)<br/>pages\yatra_launch_page.py:60: in enterDepartureDate<br/>    self.getDepatureDateField().click()<br/>C:\Users\PAVILION.000\AppData\Roaming\Python\Python39\site-packages\selenium\webdriver\remote\webelement.py:80: in click<br/>    self._execute(Command.CLICK_ELEMENT)<br/>C:\Users\PAVILION.000\AppData\Roaming\Python\Python39\site-packages\selenium\webdriver\remote\webelement.py:633: in _execute<br/>    return self._parent.execute(command, params)<br/>C:\Users\PAVILION.000\AppData\Roaming\Python\Python39\site-packages\selenium\webdriver\remote\webdriver.py:321: in execute<br/>    self.error_handler.check_response(response)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.remote.errorhandler.ErrorHandler object at 0x0000022D4D312520&gt;<br/>response = {&#x27;status&#x27;: 400, &#x27;value&#x27;: &#x27;{&quot;value&quot;:{&quot;error&quot;:&quot;element click intercepted&quot;,&quot;message&quot;:&quot;element click intercepted: Element ...\n\\tRtlGetAppContainerNamedObjectPath [0x77C48944+228]\\n\\tRtlGetAppContainerNamedObjectPath [0x77C48914+180]\\n&quot;}}&#x27;}<br/><br/>    def check_response(self, response):<br/>        &quot;&quot;&quot;<br/>        Checks that a JSON response from the WebDriver does not have an error.<br/>    <br/>        :Args:<br/>         - response - The JSON response from the WebDriver server as a dictionary<br/>           object.<br/>    <br/>        :Raises: If the response contains an error message.<br/>        &quot;&quot;&quot;<br/>        status = response.get(&#x27;status&#x27;, None)<br/>        if status is None or status == ErrorCode.SUCCESS:<br/>            return<br/>        value = None<br/>        message = response.get(&quot;message&quot;, &quot;&quot;)<br/>        screen = response.get(&quot;screen&quot;, &quot;&quot;)<br/>        stacktrace = None<br/>        if isinstance(status, int):<br/>            value_json = response.get(&#x27;value&#x27;, None)<br/>            if value_json and isinstance(value_json, basestring):<br/>                import json<br/>                try:<br/>                    value = json.loads(value_json)<br/>                    if len(value.keys()) == 1:<br/>                        value = value[&#x27;value&#x27;]<br/>                    status = value.get(&#x27;error&#x27;, None)<br/>                    if status is None:<br/>                        status = value[&quot;status&quot;]<br/>                        message = value[&quot;value&quot;]<br/>                        if not isinstance(message, basestring):<br/>                            value = message<br/>                            message = message.get(&#x27;message&#x27;)<br/>                    else:<br/>                        message = value.get(&#x27;message&#x27;, None)<br/>                except ValueError:<br/>                    pass<br/>    <br/>        exception_class = ErrorInResponseException<br/>        if status in ErrorCode.NO_SUCH_ELEMENT:<br/>            exception_class = NoSuchElementException<br/>        elif status in ErrorCode.NO_SUCH_FRAME:<br/>            exception_class = NoSuchFrameException<br/>        elif status in ErrorCode.NO_SUCH_WINDOW:<br/>            exception_class = NoSuchWindowException<br/>        elif status in ErrorCode.STALE_ELEMENT_REFERENCE:<br/>            exception_class = StaleElementReferenceException<br/>        elif status in ErrorCode.ELEMENT_NOT_VISIBLE:<br/>            exception_class = ElementNotVisibleException<br/>        elif status in ErrorCode.INVALID_ELEMENT_STATE:<br/>            exception_class = InvalidElementStateException<br/>        elif status in ErrorCode.INVALID_SELECTOR \<br/>                or status in ErrorCode.INVALID_XPATH_SELECTOR \<br/>                or status in ErrorCode.INVALID_XPATH_SELECTOR_RETURN_TYPER:<br/>            exception_class = InvalidSelectorException<br/>        elif status in ErrorCode.ELEMENT_IS_NOT_SELECTABLE:<br/>            exception_class = ElementNotSelectableException<br/>        elif status in ErrorCode.ELEMENT_NOT_INTERACTABLE:<br/>            exception_class = ElementNotInteractableException<br/>        elif status in ErrorCode.INVALID_COOKIE_DOMAIN:<br/>            exception_class = InvalidCookieDomainException<br/>        elif status in ErrorCode.UNABLE_TO_SET_COOKIE:<br/>            exception_class = UnableToSetCookieException<br/>        elif status in ErrorCode.TIMEOUT:<br/>            exception_class = TimeoutException<br/>        elif status in ErrorCode.SCRIPT_TIMEOUT:<br/>            exception_class = TimeoutException<br/>        elif status in ErrorCode.UNKNOWN_ERROR:<br/>            exception_class = WebDriverException<br/>        elif status in ErrorCode.UNEXPECTED_ALERT_OPEN:<br/>            exception_class = UnexpectedAlertPresentException<br/>        elif status in ErrorCode.NO_ALERT_OPEN:<br/>            exception_class = NoAlertPresentException<br/>        elif status in ErrorCode.IME_NOT_AVAILABLE:<br/>            exception_class = ImeNotAvailableException<br/>        elif status in ErrorCode.IME_ENGINE_ACTIVATION_FAILED:<br/>            exception_class = ImeActivationFailedException<br/>        elif status in ErrorCode.MOVE_TARGET_OUT_OF_BOUNDS:<br/>            exception_class = MoveTargetOutOfBoundsException<br/>        elif status in ErrorCode.JAVASCRIPT_ERROR:<br/>            exception_class = JavascriptException<br/>        elif status in ErrorCode.SESSION_NOT_CREATED:<br/>            exception_class = SessionNotCreatedException<br/>        elif status in ErrorCode.INVALID_ARGUMENT:<br/>            exception_class = InvalidArgumentException<br/>        elif status in ErrorCode.NO_SUCH_COOKIE:<br/>            exception_class = NoSuchCookieException<br/>        elif status in ErrorCode.UNABLE_TO_CAPTURE_SCREEN:<br/>            exception_class = ScreenshotException<br/>        elif status in ErrorCode.ELEMENT_CLICK_INTERCEPTED:<br/>            exception_class = ElementClickInterceptedException<br/>        elif status in ErrorCode.INSECURE_CERTIFICATE:<br/>            exception_class = InsecureCertificateException<br/>        elif status in ErrorCode.INVALID_COORDINATES:<br/>            exception_class = InvalidCoordinatesException<br/>        elif status in ErrorCode.INVALID_SESSION_ID:<br/>            exception_class = InvalidSessionIdException<br/>        elif status in ErrorCode.UNKNOWN_METHOD:<br/>            exception_class = UnknownMethodException<br/>        else:<br/>            exception_class = WebDriverException<br/>        if value == &#x27;&#x27; or value is None:<br/>            value = response[&#x27;value&#x27;]<br/>        if isinstance(value, basestring):<br/>            if exception_class == ErrorInResponseException:<br/>                raise exception_class(response, value)<br/>            raise exception_class(value)<br/>        if message == &quot;&quot; and &#x27;message&#x27; in value:<br/>            message = value[&#x27;message&#x27;]<br/>    <br/>        screen = None<br/>        if &#x27;screen&#x27; in value:<br/>            screen = value[&#x27;screen&#x27;]<br/>    <br/>        stacktrace = None<br/>        if &#x27;stackTrace&#x27; in value and value[&#x27;stackTrace&#x27;]:<br/>            stacktrace = []<br/>            try:<br/>                for frame in value[&#x27;stackTrace&#x27;]:<br/>                    line = self._value_or_default(frame, &#x27;lineNumber&#x27;, &#x27;&#x27;)<br/>                    file = self._value_or_default(frame, &#x27;fileName&#x27;, &#x27;&lt;anonymous&gt;&#x27;)<br/>                    if line:<br/>                        file = &quot;%s:%s&quot; % (file, line)<br/>                    meth = self._value_or_default(frame, &#x27;methodName&#x27;, &#x27;&lt;anonymous&gt;&#x27;)<br/>                    if &#x27;className&#x27; in frame:<br/>                        meth = &quot;%s.%s&quot; % (frame[&#x27;className&#x27;], meth)<br/>                    msg = &quot;    at %s (%s)&quot;<br/>                    msg = msg % (meth, file)<br/>                    stacktrace.append(msg)<br/>            except TypeError:<br/>                pass<br/>        if exception_class == ErrorInResponseException:<br/>            raise exception_class(response, message)<br/>        elif exception_class == UnexpectedAlertPresentException:<br/>            alert_text = None<br/>            if &#x27;data&#x27; in value:<br/>                alert_text = value[&#x27;data&#x27;].get(&#x27;text&#x27;)<br/>            elif &#x27;alert&#x27; in value:<br/>                alert_text = value[&#x27;alert&#x27;].get(&#x27;text&#x27;)<br/>            raise exception_class(message, screen, stacktrace, alert_text)<br/>&gt;       raise exception_class(message, screen, stacktrace)<br/><span class="error">E       selenium.common.exceptions.ElementClickInterceptedException: Message: element click intercepted: Element &lt;input data-role=&quot;none&quot; readonly=&quot;readonly&quot; type=&quot;text&quot; autocomplete=&quot;false&quot; name=&quot;flight_origin_date&quot; placeholder=&quot; &quot; id=&quot;BE_flight_origin_date&quot; class=&quot;custom-date-input BE_flight_origin_date&quot;&gt; is not clickable at point (442, 259). Other element would receive the click: &lt;li class=&quot;ac_over&quot;&gt;...&lt;/li&gt;</span><br/><span class="error">E         (Session info: chrome=92.0.4515.131)</span><br/><br/>C:\Users\PAVILION.000\AppData\Roaming\Python\Python39\site-packages\selenium\webdriver\remote\errorhandler.py:242: ElementClickInterceptedException<br/> -----------------------------Captured stdout setup------------------------------ <br/>
+
+<br/> -----------------------------Captured stderr setup------------------------------ <br/>[WDM] - ====== WebDriver manager ======
+[WDM] - Current google-chrome version is 92.0.4515
+[WDM] - Get LATEST driver version for 92.0.4515
+[WDM] - Driver [C:\Users\PAVILION.000\.wdm\drivers\chromedriver\win32\92.0.4515.107\chromedriver.exe] found in cache
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     WDM:logger.py:22 ====== WebDriver manager ======
+INFO     WDM:logger.py:12 Current google-chrome version is 92.0.4515
+INFO     WDM:logger.py:12 Get LATEST driver version for 92.0.4515
+INFO     WDM:logger.py:12 Driver [C:\Users\PAVILION.000\.wdm\drivers\chromedriver\win32\92.0.4515.107\chromedriver.exe] found in cache<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     LaunchPage:yatra_launch_page.py:48 Clicked on going to
+INFO     LaunchPage:yatra_launch_page.py:51 Typed text into going to field successfully<br/></div></td></tr></tbody></table></body></html>

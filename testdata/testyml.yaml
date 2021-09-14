@@ -1,0 +1,12 @@
+---
+test1:
+  goingfrom: BOM
+  goingto: JFK
+  date: 24/08/2021
+  stops: 1 Stop
+test2:
+  goingfrom: New Delhi
+  goingto: JFK
+  date: 14/10/2021
+  stops: 2 Stop
+...
